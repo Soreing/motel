@@ -32,8 +32,8 @@ trc := "00-6aa68cc5f3ec62cc7311d38af7fb4176-b5e0e5ec613d07ab-01"
 sId := "a4dfd4db502cf69a"
 
 tid := [16]byte{ /* Convert "6aa68cc5f3ec62cc7311d38af7fb4176" */}
-pid := [16]byte{ /* Convert "b5e0e5ec613d07ab" */}
-sid := [16]byte{ /* Convert "a4dfd4db502cf69a" */}
+pid := [8]byte{ /* Convert "b5e0e5ec613d07ab" */}
+sid := [8]byte{ /* Convert "a4dfd4db502cf69a" */}
 flg := 0x01
 success := true
 start, end := time.Now(), time.Now().Add(time.Second)
