@@ -11,7 +11,15 @@ import (
 	trace "go.opentelemetry.io/otel/trace"
 )
 
-type Span struct {
+type Span interface {
+	sdktrace.ReadOnlySpan
+	WithAttribute(
+		key attribute.Key,
+		value attribute.Value,
+	)
+}
+
+type span struct {
 	// Screw your private method
 	sdktrace.ReadOnlySpan
 
@@ -49,7 +57,7 @@ func CreateSpan(
 		code = codes.Error
 	}
 
-	return Span{
+	return &span{
 		name:     name,
 		spanKind: spanKind,
 		resource: resource,
@@ -68,7 +76,7 @@ func CreateSpan(
 }
 
 // Adds an attribute to the span
-func (s *Span) WithAttribute(
+func (s *span) WithAttribute(
 	key attribute.Key,
 	value attribute.Value,
 ) {
@@ -85,11 +93,11 @@ func (s *Span) WithAttribute(
 // ~ ~ ~ ~ ~ ~ ~ ~ Open Telemetry  Interface Functions ~ ~ ~ ~ ~ ~ ~ ~ //
 // ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ //
 
-func (s *Span) Name() string {
+func (s *span) Name() string {
 	return s.name
 }
 
-func (s *Span) SpanContext() trace.SpanContext {
+func (s *span) SpanContext() trace.SpanContext {
 	return trace.NewSpanContext(
 		trace.SpanContextConfig{
 			TraceID:    s.traceId,
@@ -101,7 +109,7 @@ func (s *Span) SpanContext() trace.SpanContext {
 	)
 }
 
-func (s *Span) Parent() trace.SpanContext {
+func (s *span) Parent() trace.SpanContext {
 	return trace.NewSpanContext(
 		trace.SpanContextConfig{
 			TraceID:    s.traceId,
@@ -113,38 +121,38 @@ func (s *Span) Parent() trace.SpanContext {
 	)
 }
 
-func (s *Span) SpanKind() trace.SpanKind {
+func (s *span) SpanKind() trace.SpanKind {
 	return s.spanKind
 }
 
-func (s *Span) StartTime() time.Time {
+func (s *span) StartTime() time.Time {
 	return s.startTime
 }
 
-func (s *Span) EndTime() time.Time {
+func (s *span) EndTime() time.Time {
 	return s.endTime
 }
 
-func (s *Span) Attributes() []attribute.KeyValue {
+func (s *span) Attributes() []attribute.KeyValue {
 	return s.attributes
 }
 
 // TODO: Actually implement
-func (s *Span) Links() []sdktrace.Link {
+func (s *span) Links() []sdktrace.Link {
 	return []sdktrace.Link{}
 }
 
 // TODO: Actually implement
-func (s *Span) Events() []sdktrace.Event {
+func (s *span) Events() []sdktrace.Event {
 	return []sdktrace.Event{}
 }
 
-func (s *Span) Status() sdktrace.Status {
+func (s *span) Status() sdktrace.Status {
 	return s.status
 }
 
 // TODO: Actually implement
-func (s *Span) InstrumentationScope() instrumentation.Scope {
+func (s *span) InstrumentationScope() instrumentation.Scope {
 	return instrumentation.Scope{
 		Name:      "",
 		Version:   "",
@@ -153,7 +161,7 @@ func (s *Span) InstrumentationScope() instrumentation.Scope {
 }
 
 // TODO: Actually implement
-func (s *Span) InstrumentationLibrary() instrumentation.Library {
+func (s *span) InstrumentationLibrary() instrumentation.Library {
 	return instrumentation.Library{
 		Name:      "",
 		Version:   "",
@@ -161,27 +169,26 @@ func (s *Span) InstrumentationLibrary() instrumentation.Library {
 	}
 }
 
-func (s *Span) Resource() *resource.Resource {
+func (s *span) Resource() *resource.Resource {
 	return s.resource
 }
 
 // TODO: What even is this
-func (s *Span) DroppedAttributes() int {
+func (s *span) DroppedAttributes() int {
 	return 0
 }
 
 // TODO: What even is this
-func (s *Span) DroppedLinks() int {
+func (s *span) DroppedLinks() int {
 	return 0
 }
 
 // TODO: What even is this
-func (s *Span) DroppedEvents() int {
+func (s *span) DroppedEvents() int {
 	return 0
 }
 
 // TODO: Is this even useful
-func (s *Span) ChildSpanCount() int {
+func (s *span) ChildSpanCount() int {
 	return 0
 }
-

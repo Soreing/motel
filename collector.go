@@ -5,57 +5,61 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-type SpanCollector struct {
+type SpanCollector interface {
+	Feed(sp sdktrace.ReadOnlySpan)
+	Close()
+}
+
+type spanCollector struct {
 	exporters []sdktrace.SpanExporter
-	resource  *resource.Resource
 
 	batched bool
-	batchCh chan *Span
+	batchCh chan sdktrace.ReadOnlySpan
 	batchWg *sync.WaitGroup
 }
 
 // Creates new span collector
 func NewSpanCollector(
 	exporters []sdktrace.SpanExporter,
-	resource *resource.Resource,
 	batchTime time.Duration,
 	batchLimit int,
-) *SpanCollector {
-	sc := &SpanCollector{
+) SpanCollector {
+	sc := &spanCollector{
 		exporters: exporters,
-		resource:  resource,
 		batched:   batchTime > 0,
 		batchWg:   &sync.WaitGroup{},
 	}
 
 	if batchTime >= 0 {
-		sc.batchCh = make(chan *Span)
 		sc.batchWg.Add(1)
+		defer sc.batchWg.Done()
+		sc.batchCh = make(chan sdktrace.ReadOnlySpan)
 		go sc.batcher(batchTime, batchLimit)
 	}
 
 	return sc
 }
 
-func (sc *SpanCollector) batcher(dur time.Duration, limit int) {
+func (sc *spanCollector) batcher(dur time.Duration, limit int) {
 	buffer := make([]sdktrace.ReadOnlySpan, limit)
 	timer := time.NewTimer(dur)
 	count := 0
 
-	var sp *Span
 	ctx := context.TODO()
+	var sp sdktrace.ReadOnlySpan
 	for active := true; active; {
 		select {
 		case sp, active = <-sc.batchCh:
-			buffer[count] = sp
-			count++
+			if active {
+				buffer[count] = sp
+				count++
+			}
 			if count == limit || (!active && count > 0) {
 				for _, e := range sc.exporters {
-					e.ExportSpans(ctx, buffer[:])
+					e.ExportSpans(ctx, buffer[:count])
 				}
 				count = 0
 				timer.Reset(dur)
@@ -63,7 +67,7 @@ func (sc *SpanCollector) batcher(dur time.Duration, limit int) {
 		case <-timer.C:
 			if count > 0 {
 				for _, e := range sc.exporters {
-					e.ExportSpans(ctx, buffer[:])
+					e.ExportSpans(ctx, buffer[:count])
 				}
 				count = 0
 			}
@@ -71,24 +75,21 @@ func (sc *SpanCollector) batcher(dur time.Duration, limit int) {
 		}
 	}
 
-	sc.batchWg.Done()
+	timer.Stop()
+	<-timer.C
 }
 
-func (sc *SpanCollector) GetResource() *resource.Resource {
-	return sc.resource
-}
-
-func (sc *SpanCollector) Feed(sp Span) {
+func (sc *spanCollector) Feed(sp sdktrace.ReadOnlySpan) {
 	if sc.batched {
-		sc.batchCh <- &sp
+		sc.batchCh <- sp
 	} else {
 		for _, e := range sc.exporters {
-			e.ExportSpans(context.TODO(), []sdktrace.ReadOnlySpan{&sp})
+			e.ExportSpans(context.TODO(), []sdktrace.ReadOnlySpan{sp})
 		}
 	}
 }
 
-func (sc *SpanCollector) Close() {
+func (sc *spanCollector) Close() {
 	if sc.batched {
 		close(sc.batchCh)
 		sc.batchWg.Wait()
@@ -97,4 +98,3 @@ func (sc *SpanCollector) Close() {
 		e.Shutdown(context.TODO())
 	}
 }
-
