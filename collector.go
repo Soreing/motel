@@ -2,6 +2,7 @@ package motel
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -9,7 +10,7 @@ import (
 )
 
 type SpanCollector interface {
-	Feed(sp sdktrace.ReadOnlySpan)
+	Feed(sp sdktrace.ReadOnlySpan) error
 	Close()
 }
 
@@ -19,6 +20,9 @@ type spanCollector struct {
 	batched bool
 	batchCh chan sdktrace.ReadOnlySpan
 	batchWg *sync.WaitGroup
+
+	mtx    *sync.RWMutex
+	closed bool
 }
 
 // Creates new span collector
@@ -31,6 +35,8 @@ func NewSpanCollector(
 		exporters: exporters,
 		batched:   batchTime > 0,
 		batchWg:   &sync.WaitGroup{},
+		mtx:       &sync.RWMutex{},
+		closed:    false,
 	}
 
 	if batchTime >= 0 {
@@ -79,7 +85,13 @@ func (sc *spanCollector) batcher(dur time.Duration, limit int) {
 	<-timer.C
 }
 
-func (sc *spanCollector) Feed(sp sdktrace.ReadOnlySpan) {
+func (sc *spanCollector) Feed(sp sdktrace.ReadOnlySpan) error {
+	sc.mtx.RLock()
+	defer sc.mtx.RUnlock()
+	if sc.closed {
+		return errors.New("collector closed")
+	}
+
 	if sc.batched {
 		sc.batchCh <- sp
 	} else {
@@ -87,9 +99,14 @@ func (sc *spanCollector) Feed(sp sdktrace.ReadOnlySpan) {
 			e.ExportSpans(context.TODO(), []sdktrace.ReadOnlySpan{sp})
 		}
 	}
+	return nil
 }
 
 func (sc *spanCollector) Close() {
+	sc.mtx.Lock()
+	defer sc.mtx.Unlock()
+	sc.closed = true
+
 	if sc.batched {
 		close(sc.batchCh)
 		sc.batchWg.Wait()
