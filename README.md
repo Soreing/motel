@@ -3,7 +3,7 @@ Motel is a simple library that lets you create Open Telemetry ReadOnlySpan objec
 
 ## Usage
 
-Create a Motel Span Collector that will accept Open Telemetry ReadOnlySpans. You need to specify a list of exporters and a batch interval with batch limit. Spans will be sent to exporters periodically specified by the batch interval or when the number of batched spans reach the limit. Setting the batch interval to 0 will disable batching and skip creating the resources for it.
+Create a Motel Span Collector that will accept Open Telemetry ReadOnlySpans. You need to specify a list of exporters and a batch interval with batch limit. Spans will be sent to exporters periodically specified by the batch interval or when the number of batched spans reach the limit. Setting the batch interval and limit to 0 will disable batching and skip creating the resources for it.
 ```golang
 coll := motel.NewSpanCollector(
     []trace.SpanExporter{},

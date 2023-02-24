@@ -39,7 +39,7 @@ func NewSpanCollector(
 		closed:    false,
 	}
 
-	if batchTime >= 0 {
+	if batchTime > 0 && batchLimit > 1 {
 		sc.batchWg.Add(1)
 		defer sc.batchWg.Done()
 		sc.batchCh = make(chan sdktrace.ReadOnlySpan)
