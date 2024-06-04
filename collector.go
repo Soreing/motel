@@ -41,7 +41,6 @@ func NewSpanCollector(
 
 	if batchTime > 0 && batchLimit > 1 {
 		sc.batchWg.Add(1)
-		defer sc.batchWg.Done()
 		sc.batchCh = make(chan sdktrace.ReadOnlySpan)
 		go sc.batcher(batchTime, batchLimit)
 	}
@@ -50,6 +49,8 @@ func NewSpanCollector(
 }
 
 func (sc *spanCollector) batcher(dur time.Duration, limit int) {
+	defer sc.batchWg.Done()
+
 	buffer := make([]sdktrace.ReadOnlySpan, limit)
 	timer := time.NewTimer(dur)
 	count := 0
@@ -81,8 +82,9 @@ func (sc *spanCollector) batcher(dur time.Duration, limit int) {
 		}
 	}
 
-	timer.Stop()
-	<-timer.C
+	if !timer.Stop() {
+		<-timer.C
+	}
 }
 
 func (sc *spanCollector) Feed(sp sdktrace.ReadOnlySpan) error {
